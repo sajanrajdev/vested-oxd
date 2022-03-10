@@ -8,8 +8,8 @@ from brownie import (
 )
 from _setup.config import (
     WANT, 
+    REWARD_TOKEN,
     WHALE_ADDRESS,
-
     PERFORMANCE_FEE_GOVERNANCE,
     PERFORMANCE_FEE_STRATEGIST,
     WITHDRAWAL_FEE,
@@ -119,7 +119,7 @@ def deployed(want, deployer, strategist, keeper, guardian, governance, proxyAdmi
     # NOTE: TheVault starts unpaused
 
     strategy = MyStrategy.deploy({"from": deployer})
-    strategy.initialize(vault, [want])
+    strategy.initialize(vault, [want, REWARD_TOKEN])
     # NOTE: Strategy starts unpaused
 
     vault.setStrategy(strategy, {"from": governance})
