@@ -48,7 +48,7 @@ contract MyStrategy is BaseStrategy {
 
         __BaseStrategy_init(_vault);
 
-        want = address(OXSOLID);
+        want = address(OXD);
         bOxSolid = IVault(_bOxSolid);
 
         OXD.safeApprove(address(LOCKER), type(uint256).max);
@@ -248,6 +248,8 @@ contract MyStrategy is BaseStrategy {
             harvested[0].amount = vaultBalance;
             _processExtraToken(address(bOxSolid), vaultBalance);
         }
+
+        _reportToVault(0);
     }
 
     // Example tend is a no-op which returns the values, could also just revert
@@ -257,7 +259,7 @@ contract MyStrategy is BaseStrategy {
 
     /// MANUAL FUNCTIONS ///
 
-    /// @dev manual function to reinvest all CVX that was locked
+    /// @dev manual function to reinvest all OXD that was locked
     function reinvest() external whenNotPaused returns (uint256) {
         _onlyGovernance();
 
@@ -266,10 +268,10 @@ contract MyStrategy is BaseStrategy {
             LOCKER.processExpiredLocks(false);
         }
 
-        // Redeposit all into veCVX
+        // Redeposit all into veOXD
         uint256 toDeposit = IERC20Upgradeable(want).balanceOf(address(this));
 
-        // Redeposit into veCVX
+        // Redeposit into veOXD
         _deposit(toDeposit);
 
         return toDeposit;
