@@ -2,19 +2,29 @@ import brownie
 from brownie import *
 from helpers.constants import MaxUint256
 from helpers.SnapshotManager import SnapshotManager
+from _config import DEFAULT_WITHDRAWAL_FEE
 
-MAX_BPS = 10_000
-MIN_ACCEPTABLE_APR = 0.
+MAX_BASIS = 10000
 
 
-def test_is_profitable(vault, strategy, want, randomUser, deployer):
+def test_is_profitable(deployed):
+    deployer = deployed.deployer
+    vault = deployed.vault
+    controller = deployed.controller
+    strategy = deployed.strategy
+    want = deployed.want
+    randomUser = accounts[6]
+
     initial_balance = want.balanceOf(deployer)
 
     settKeeper = accounts.at(vault.keeper(), force=True)
 
-    snap = SnapshotManager(vault, strategy, "StrategySnapshot")
+    snap = SnapshotManager(vault, strategy, controller, "StrategySnapshot")
 
-    # Deposit
+    reward = interface.IERC20(strategy.OXSOLID_VAULT())
+    reward_before = reward.balanceOf(strategy.strategist())
+
+    # Deposit   
     assert want.balanceOf(deployer) > 0
 
     depositAmount = int(want.balanceOf(deployer) * 0.8)
@@ -30,17 +40,20 @@ def test_is_profitable(vault, strategy, want, randomUser, deployer):
 
     snap.settEarn({"from": settKeeper})
 
-    chain.sleep(15)
+    chain.sleep(86400 * 250)  ## Wait 250 days
     chain.mine(1)
 
-    strategy.harvest({"from": settKeeper})
+    snap.settHarvest({"from": settKeeper})
+    
+    strategy.setProcessLocksOnRebalance(True, {"from": deployed.governance})
+    strategy.manualRebalance(0, {"from": deployed.governance})
 
     snap.settWithdrawAll({"from": deployer})
 
     ending_balance = want.balanceOf(deployer)
 
     initial_balance_with_fees = initial_balance * (
-        1 - (vault.withdrawalFee() / MAX_BPS)
+        1 - (DEFAULT_WITHDRAWAL_FEE / MAX_BASIS)
     )
 
     print("Initial Balance")
@@ -50,44 +63,9 @@ def test_is_profitable(vault, strategy, want, randomUser, deployer):
     print("Ending Balance")
     print(ending_balance)
 
+    reward_after = reward.balanceOf(strategy.strategist())
+
+    ## Custom check for rewards being sent to gov as resolver is too complex
+    assert reward_after > reward_before
+
     assert ending_balance > initial_balance_with_fees
-
-def test_is_acceptable_apr(vault, strategy, want, keeper, deployer):
-    snap = SnapshotManager(vault, strategy, "StrategySnapshot")
-
-    # Deposit
-    assert want.balanceOf(deployer) > 0
-    depositAmount = int(want.balanceOf(deployer) * 0.8)
-    assert depositAmount > 0
-
-    want.approve(vault.address, MaxUint256, {"from": deployer})
-    snap.settDeposit(depositAmount, {"from": deployer})
-
-    # Earn
-    snap.settEarn({"from": keeper})
-
-    # Harvest
-    strategy.harvest({"from": keeper})
-
-    # Ensure strategy reports correct harvestedAmount
-    assert vault.assetsAtLastHarvest() == depositAmount
-    vault_balance1 = vault.balance()
-
-    # Wait for rewards to accumulate
-    week = 60 * 60 * 24 * 7
-    chain.sleep(week)
-    chain.mine(1)
-
-    # Harvest
-    strategy.harvest({"from": keeper})
-
-    # Harvest should be non-zero if strat is printing
-    assert vault.lastHarvestAmount() > 0
-    # Ensure strategy reports correct harvestedAmount
-    assert vault.assetsAtLastHarvest() == vault_balance1
-
-    #  Over a year
-    apr = 52 * vault.lastHarvestAmount() / vault.assetsAtLastHarvest()
-
-    print(f"APR: {apr}")
-    assert apr > MIN_ACCEPTABLE_APR

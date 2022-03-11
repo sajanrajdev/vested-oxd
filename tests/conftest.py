@@ -185,6 +185,34 @@ def setup_share_math(deployer, vault, want, governance):
     return DotMap(depositAmount=depositAmount)
 
 
+@pytest.fixture
+def setup_strat(deployer, sett, strategy, want):
+    """
+    Convenience fixture that depoists and harvests for us
+    """
+    # Setup
+    startingBalance = want.balanceOf(deployer)
+
+    depositAmount = startingBalance // 2
+    assert startingBalance >= depositAmount
+    assert startingBalance >= 0
+    # End Setup
+
+    # Deposit
+    assert want.balanceOf(sett) == 0
+
+    want.approve(sett, MaxUint256, {"from": deployer})
+    sett.deposit(depositAmount, {"from": deployer})
+
+    available = sett.available()
+    assert available > 0
+
+    sett.earn({"from": deployer})
+
+    chain.sleep(10000 * 13)  # Mine so we get some interest
+    return strategy
+
+
 ## Forces reset before each test
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):

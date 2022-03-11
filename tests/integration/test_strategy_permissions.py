@@ -254,3 +254,27 @@ def test_pause_checks(vault, strategy, governance):
     with brownie.reverts():
         strategy.unpause({"from": governance}) ## Can't unpause if unpaused
 
+
+def test_check_manual_permissions(
+    strategy, sett, governance, want, deployer, locker, strategist
+):
+    rando = accounts[6]
+
+    ## Rando is bounced
+    with brownie.reverts():
+        strategy.reinvest({"from": rando})
+    with brownie.reverts():
+        strategy.manualProcessExpiredLocks({"from": rando})
+    with brownie.reverts():
+        strategy.manualSendCVXToVault({"from": rando})
+    with brownie.reverts():
+        strategy.manualRebalance(0, {"from": rando})
+
+    ## Strategist is bounced for manual ops
+    with brownie.reverts():
+        strategy.reinvest({"from": strategist})
+    with brownie.reverts():
+        strategy.manualProcessExpiredLocks({"from": strategist})
+    with brownie.reverts():
+        strategy.manualSendCVXToVault({"from": strategist})
+    with brownie.reverts():
