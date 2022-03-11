@@ -12,6 +12,12 @@ interface IVotingSnapshot {
 
     function vote(Vote[] memory) external;
 
+    function vote(
+        address,
+        address,
+        int256
+    ) external;
+
     function removeVote(address) external;
 
     function resetVotes() external;

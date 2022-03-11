@@ -33,7 +33,7 @@ contract MyStrategy is BaseStrategy {
     IVotingSnapshot public constant VOTING_SNAPSHOT = IVotingSnapshot(0xDA007a39a692B0feFe9c6cb1a185feAb2722c4fD);
 
     // The initial DELEGATE for the strategy // NOTE we can change it by using manualSetDelegate below
-    address public constant DELEGATE = address(0); // TODO
+    address public constant DELEGATE = address(0x781E82D5D49042baB750efac91858cB65C6b0582);
 
     // event RewardsCollected(
     //     address token,
@@ -55,6 +55,8 @@ contract MyStrategy is BaseStrategy {
         OXSOLID.safeApprove(_bOxSolid, type(uint256).max);
 
         VOTING_SNAPSHOT.setVoteDelegate(DELEGATE);
+
+        autoCompoundRatio = 0;
     }
 
     /// ===== Extra Functions =====

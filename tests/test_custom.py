@@ -87,10 +87,29 @@ def test_after_deposit_locker_has_more_funds(
     )
 
 
-def test_delegation_was_correct(strategy):
+def test_delegation_was_correct(deployer, vault, strategy, want, governance):
+    # Setup
+    startingBalance = want.balanceOf(deployer)
+    depositAmount = startingBalance // 2
+    assert startingBalance >= depositAmount
+    assert startingBalance >= 0
+    # End Setup
+    # Deposit
+    assert want.balanceOf(vault) == 0
+
+    want.approve(vault, MaxUint256, {"from": deployer})
+    vault.deposit(depositAmount, {"from": deployer})
+
+    available = vault.available()
+    assert available > 0
+
+    vault.earn({"from": governance})
+
+    chain.sleep(10000 * 13)  # Mine so we get some interest
+
     delegate = strategy.DELEGATE()
     voting_snapshot = interface.IVotingSnapshot(strategy.VOTING_SNAPSHOT())
     assert voting_snapshot.voteDelegateByAccount(strategy) == delegate
 
     pool = "0xDf9181Fe9a39Ec5D845D7351309C2D408a0dA4d6"
-    voting_snapshot.vote(pool, 1, {"from": delegate})
+    voting_snapshot.vote(strategy, pool, 1, {"from": delegate})
