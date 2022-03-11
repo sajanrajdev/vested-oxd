@@ -1,5 +1,8 @@
+from brownie import interface
+
 from helpers.StrategyCoreResolver import StrategyCoreResolver
 from rich.console import Console
+from _setup.config import WANT
 
 console = Console()
 
@@ -11,49 +14,63 @@ class StrategyResolver(StrategyCoreResolver):
         (Strategy Must Implement)
         """
         strategy = self.manager.strategy
-        return {"locker": strategy.LOCKER()}
+        sett = self.manager.sett
+        return {
+            "locker": strategy.LOCKER(),
+            "bOxSolid": strategy.bOxSolid(),
+            "badgerTree": sett.badgerTree(),
+        }
 
-    def hook_after_confirm_withdraw(self, before, after, params):
-        """
-        Specifies extra check for ordinary operation on withdrawal
-        Use this to verify that balances in the get_strategy_destinations are properly set
-        """
-        assert True
+    def add_balances_snap(self, calls, entities):
+        super().add_balances_snap(calls, entities)
+        strategy = self.manager.strategy
 
-    def hook_after_confirm_deposit(self, before, after, params):
-        """
-        Specifies extra check for ordinary operation on deposit
-        Use this to verify that balances in the get_strategy_destinations are properly set
-        """
-        assert True  ## Done in earn
+        oxSolid = interface.IERC20(strategy.OXSOLID())
+        bOxSolid = interface.IERC20(strategy.bOxSolid())
 
-    def hook_after_earn(self, before, after, params):
-        """
-        Specifies extra check for ordinary operation on earn
-        Use this to verify that balances in the get_strategy_destinations are properly set
-        """
-        assert True
+        calls = self.add_entity_balances_for_tokens(calls, "oxSolid", oxSolid, entities)
+        calls = self.add_entity_balances_for_tokens(
+            calls, "bOxSolid", bOxSolid, entities
+        )
+
+        return calls
 
     def confirm_harvest(self, before, after, tx):
-        """
-        Verfies that the Harvest produced yield and fees
-        NOTE: This overrides default check, use only if you know what you're doing
-        """
         console.print("=== Compare Harvest ===")
         self.manager.printCompare(before, after)
         self.confirm_harvest_state(before, after, tx)
 
-        ## Just no loss as we are not compounding anything
-        assert after.get("sett.pricePerFullShare") >= before.get(
-            "sett.pricePerFullShare"
+        # No autocompounding
+        # super().confirm_harvest(before, after, tx)
+
+        assert after.get("sett.getPricePerFullShare") == before.get(
+            "sett.getPricePerFullShare"
         )
 
-    def confirm_tend(self, before, after, tx):
-        """
-        Tend Should;
-        - Increase the number of staked tended tokens in the strategy-specific mechanism
-        - Reduce the number of tended tokens in the Strategy to zero
+        assert len(tx.events["Harvested"]) == 1
+        event = tx.events["Harvested"][0]
 
-        (Strategy Must Implement)
-        """
-        assert False
+        assert event["token"] == WANT
+        assert event["amount"] == 0
+
+        assert len(tx.events["TreeDistribution"]) == 1
+        event = tx.events["TreeDistribution"][0]
+
+        assert after.balances("bOxSolid", "badgerTree") > before.balances(
+            "bOxSolid", "badgerTree"
+        )
+
+        if before.get("sett.performanceFeeGovernance") > 0:
+            assert after.balances("bOxSolid", "treasury") > before.balances(
+                "bOxSolid", "treasury"
+            )
+
+        if before.get("sett.performanceFeeStrategist") > 0:
+            assert after.balances("bOxSolid", "strategist") > before.balances(
+                "bOxSolid", "strategist"
+            )
+
+        assert event["token"] == self.manager.strategy.bOxSolid()
+        assert event["amount"] == after.balances(
+            "bOxSolid", "badgerTree"
+        ) - before.balances("bOxSolid", "badgerTree")

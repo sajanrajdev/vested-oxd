@@ -1,9 +1,8 @@
 ## Token deposited in the vault
 WANT = "0xc5A9848b9d145965d821AaeC8fA32aaEE026492d"  ## OXD
-REWARD_TOKEN = "0xDA0053F0bEfCbcaC208A3f867BB243716734D809"  ## oxSolid
 
 ## Account that has a lot of want (we will "borrow it" for testing)
-WHALE_ADDRESS = "0x58361112092cfbb000514eb179c429d285c13857"
+WHALE_ADDRESS = "0xD6e666EC745990Ec678342936446265198D5DF62"
 
 ## Address for Badger Registry, used to fill in default addresses
 ## See: https://github.com/Badger-Finance/badger-registry
