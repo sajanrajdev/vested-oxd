@@ -2,7 +2,6 @@ import brownie
 from brownie import *
 from helpers.constants import MaxUint256
 from helpers.SnapshotManager import SnapshotManager
-from _config import DEFAULT_WITHDRAWAL_FEE
 
 MAX_BASIS = 10000
 
@@ -10,7 +9,6 @@ MAX_BASIS = 10000
 def test_is_profitable(deployed):
     deployer = deployed.deployer
     vault = deployed.vault
-    controller = deployed.controller
     strategy = deployed.strategy
     want = deployed.want
     randomUser = accounts[6]
@@ -19,10 +17,10 @@ def test_is_profitable(deployed):
 
     settKeeper = accounts.at(vault.keeper(), force=True)
 
-    snap = SnapshotManager(vault, strategy, controller, "StrategySnapshot")
+    snap = SnapshotManager(vault, strategy, "StrategySnapshot")
 
-    reward = interface.IERC20(strategy.OXSOLID_VAULT())
-    reward_before = reward.balanceOf(strategy.strategist())
+    reward = interface.IERC20(strategy.bOxSolid())
+    reward_before = reward.balanceOf(vault.treasury())
 
     # Deposit
     assert want.balanceOf(deployer) > 0
@@ -53,7 +51,7 @@ def test_is_profitable(deployed):
     ending_balance = want.balanceOf(deployer)
 
     initial_balance_with_fees = initial_balance * (
-        1 - (DEFAULT_WITHDRAWAL_FEE / MAX_BASIS)
+        1 - (vault.withdrawalFee() / MAX_BASIS)
     )
 
     print("Initial Balance")
@@ -63,7 +61,7 @@ def test_is_profitable(deployed):
     print("Ending Balance")
     print(ending_balance)
 
-    reward_after = reward.balanceOf(strategy.strategist())
+    reward_after = reward.balanceOf(vault.treasury())
 
     ## Custom check for rewards being sent to gov as resolver is too complex
     assert reward_after > reward_before

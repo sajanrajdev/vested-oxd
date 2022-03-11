@@ -3,12 +3,13 @@ import time
 from brownie import (
     MyStrategy,
     TheVault,
+    MockStrategy,
     interface,
     accounts,
+    chain,
 )
 from _setup.config import (
     WANT,
-    REWARD_TOKEN,
     WHALE_ADDRESS,
     PERFORMANCE_FEE_GOVERNANCE,
     PERFORMANCE_FEE_STRATEGIST,
@@ -90,6 +91,38 @@ def badgerTree():
 
 
 @pytest.fixture
+def oxsolid():
+    return "0xDA0053F0bEfCbcaC208A3f867BB243716734D809"
+
+
+@pytest.fixture
+def boxsolid(oxsolid, governance, keeper, guardian, strategist, badgerTree):
+    vault = TheVault.deploy({"from": accounts[0]})
+    vault.initialize(
+        oxsolid,
+        governance,
+        keeper,
+        guardian,
+        governance,
+        strategist,
+        badgerTree,
+        "",
+        "",
+        [
+            PERFORMANCE_FEE_GOVERNANCE,
+            PERFORMANCE_FEE_STRATEGIST,
+            WITHDRAWAL_FEE,
+            MANAGEMENT_FEE,
+        ],
+    )
+    strategy = MockStrategy.deploy({"from": accounts[0]})
+    strategy.initialize(vault)
+
+    vault.setStrategy(strategy, {"from": governance})
+    return vault
+
+
+@pytest.fixture
 def deployed(
     want,
     deployer,
@@ -100,6 +133,7 @@ def deployed(
     proxyAdmin,
     randomUser,
     badgerTree,
+    boxsolid,
 ):
     """
     Deploys, vault and test strategy, mock token and wires them up.
@@ -128,7 +162,7 @@ def deployed(
     # NOTE: TheVault starts unpaused
 
     strategy = MyStrategy.deploy({"from": deployer})
-    strategy.initialize(vault, [want, REWARD_TOKEN])
+    strategy.initialize(vault, boxsolid)
     # NOTE: Strategy starts unpaused
 
     vault.setStrategy(strategy, {"from": governance})
@@ -165,6 +199,11 @@ def tokens(deployed):
     return [deployed.want]
 
 
+@pytest.fixture
+def locker(strategy):
+    return interface.IVlOxd(strategy.LOCKER())
+
+
 ### Fees ###
 @pytest.fixture
 def performanceFeeGovernance(deployed):
@@ -195,7 +234,7 @@ def setup_share_math(deployer, vault, want, governance):
 
 
 @pytest.fixture
-def setup_strat(deployer, sett, strategy, want):
+def setup_strat(governance, deployer, vault, strategy, want):
     """
     Convenience fixture that depoists and harvests for us
     """
@@ -208,15 +247,15 @@ def setup_strat(deployer, sett, strategy, want):
     # End Setup
 
     # Deposit
-    assert want.balanceOf(sett) == 0
+    assert want.balanceOf(vault) == 0
 
-    want.approve(sett, MaxUint256, {"from": deployer})
-    sett.deposit(depositAmount, {"from": deployer})
+    want.approve(vault, MaxUint256, {"from": deployer})
+    vault.deposit(depositAmount, {"from": deployer})
 
-    available = sett.available()
+    available = vault.available()
     assert available > 0
 
-    sett.earn({"from": deployer})
+    vault.earn({"from": governance})
 
     chain.sleep(10000 * 13)  # Mine so we get some interest
     return strategy

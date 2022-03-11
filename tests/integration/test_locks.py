@@ -5,28 +5,28 @@ from helpers.constants import MaxUint256
 
 
 def test_withdraw_more_than_liquid_tries_to_unlock(
-    setup_strat, deployer, sett, strategy, want, locker, deployed
+    setup_strat, deployer, vault, strategy, want, locker, deployed
 ):
 
     ## Try to withdraw all, fail because locked
-    initial_dep = sett.balanceOf(deployer)
+    initial_dep = vault.balanceOf(deployer)
 
     with brownie.reverts():
-        sett.withdraw(initial_dep, {"from": deployer})
+        vault.withdraw(initial_dep, {"from": deployer})
 
-    can_withdraw = want.balanceOf(sett) + want.balanceOf(setup_strat)
+    can_withdraw = want.balanceOf(vault) + want.balanceOf(setup_strat)
 
     with brownie.reverts():
-        sett.withdraw(can_withdraw + 100)  ## Expect to fail as lock is not expired
+        vault.withdraw(can_withdraw + 100)  ## Expect to fail as lock is not expired
 
 
 def test_wait_for_all_locks_can_withdraw_easy_after_manual_rebalance(
-    setup_strat, deployer, sett, strategy, want, locker, deployed
+    setup_strat, deployer, vault, strategy, want, locker, deployed
 ):
     ## Strategy has funds and they are locked
     ## Wait a bunch and see if you can withdraw all
 
-    initial_dep = sett.balanceOf(deployer)
+    initial_dep = vault.balanceOf(deployer)
 
     ## Wait to unlock
     chain.sleep(86400 * 250)  # 250 days so lock expires
@@ -35,7 +35,7 @@ def test_wait_for_all_locks_can_withdraw_easy_after_manual_rebalance(
     strategy.manualRebalance(0, {"from": deployed.governance})
 
     ## Try to withdraw all
-    sett.withdraw(initial_dep, {"from": deployer})
+    vault.withdraw(initial_dep, {"from": deployer})
 
     assert (
         want.balanceOf(deployer) * 0.998 > initial_dep

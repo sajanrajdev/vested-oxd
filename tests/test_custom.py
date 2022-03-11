@@ -11,22 +11,22 @@ from helpers.time import days
 """
 
 
-def test_after_wait_withdrawSome_unlocks_for_caller(setup_strat, want, sett, deployer):
+def test_after_wait_withdrawSome_unlocks_for_caller(setup_strat, want, vault, deployer):
     ## Try to withdraw all, fail because locked
-    initial_dep = sett.balanceOf(deployer)
+    initial_dep = vault.balanceOf(deployer)
 
     with brownie.reverts():
-        sett.withdraw(initial_dep, {"from": deployer})
+        vault.withdraw(initial_dep, {"from": deployer})
 
     chain.sleep(86400 * 250)  # 250 days so lock expires
 
     initial_b = want.balanceOf(deployer)
 
     ## Not enough liquid balance
-    assert want.balanceOf(sett) + want.balanceOf(setup_strat) < initial_dep
+    assert want.balanceOf(vault) + want.balanceOf(setup_strat) < initial_dep
 
     ## Yet we pull it off, because it unlocks for us
-    sett.withdraw(
+    vault.withdraw(
         initial_dep, {"from": deployer}
     )  ## Because we try to withdraw more than
 
@@ -34,18 +34,18 @@ def test_after_wait_withdrawSome_unlocks_for_caller(setup_strat, want, sett, dep
 
     ## More accurately
     assert want.balanceOf(deployer) - initial_b >= (
-        initial_dep * (10_000 - setup_strat.withdrawalFee()) / 10_000 - 1
+        initial_dep * (10_000 - vault.withdrawalFee()) // 10_000 - 1
     )
 
 
-def test_if_change_min_some_can_be_withdraw_easy(setup_strat, sett, deployer, want):
+def test_if_change_min_some_can_be_withdraw_easy(setup_strat, vault, deployer, want):
 
     initial_b = want.balanceOf(deployer)
     ## TODO / CHECK This is the ideal math but it seems to revert on me
-    ## min = (sett.max() - sett.min() - 1) * sett.balanceOf(deployer) / 10000
-    min = (sett.max() - sett.min() - 1) * sett.balanceOf(deployer) / 10000
+    ## min = (vault.MAX_BPS() - vault.toEarnBps() - 1) * vault.balanceOf(deployer) / 10000
+    min = (vault.MAX_BPS() - vault.toEarnBps() - 1) * vault.balanceOf(deployer) / 10000
 
-    sett.withdraw(min, {"from": deployer})
+    vault.withdraw(min, {"from": deployer})
 
     assert (
         want.balanceOf(deployer) > initial_b
@@ -53,7 +53,7 @@ def test_if_change_min_some_can_be_withdraw_easy(setup_strat, sett, deployer, wa
 
 
 def test_after_deposit_locker_has_more_funds(
-    locker, deployer, sett, strategy, want, staking
+    locker, deployer, vault, strategy, want, governance
 ):
     """
     We have to check that the Locker get's more funds after a deposit
@@ -68,15 +68,15 @@ def test_after_deposit_locker_has_more_funds(
     assert startingBalance >= 0
     # End Setup
     # Deposit
-    assert want.balanceOf(sett) == 0
+    assert want.balanceOf(vault) == 0
 
-    want.approve(sett, MaxUint256, {"from": deployer})
-    sett.deposit(depositAmount, {"from": deployer})
+    want.approve(vault, MaxUint256, {"from": deployer})
+    vault.deposit(depositAmount, {"from": deployer})
 
-    available = sett.available()
+    available = vault.available()
     assert available > 0
 
-    sett.earn({"from": deployer})
+    vault.earn({"from": governance})
 
     chain.sleep(10000 * 13)  # Mine so we get some interest
 
@@ -89,5 +89,5 @@ def test_after_deposit_locker_has_more_funds(
 
 def test_delegation_was_correct(strategy):
     target_delegate = strategy.DELEGATE()
-    voting_snapshot = interface.IVotingSnapshot(strategy.votingSnaphot)
-    assert voting_snapshot.voteDelegatedByAccount(strategy) == target_delegate
+    voting_snapshot = interface.IVotingSnapshot(strategy.VOTING_SNAPSHOT())
+    assert voting_snapshot.voteDelegateByAccount(strategy) == target_delegate

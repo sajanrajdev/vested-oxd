@@ -255,7 +255,7 @@ def test_pause_checks(vault, strategy, governance):
 
 
 def test_check_manual_permissions(
-    strategy, sett, governance, want, deployer, locker, strategist
+    strategy, vault, governance, want, deployer, locker, strategist
 ):
     rando = accounts[6]
 
@@ -265,7 +265,7 @@ def test_check_manual_permissions(
     with brownie.reverts():
         strategy.manualProcessExpiredLocks({"from": rando})
     with brownie.reverts():
-        strategy.manualSendCVXToVault({"from": rando})
+        strategy.manualSendOXDToVault({"from": rando})
     with brownie.reverts():
         strategy.manualRebalance(0, {"from": rando})
 
@@ -275,6 +275,6 @@ def test_check_manual_permissions(
     with brownie.reverts():
         strategy.manualProcessExpiredLocks({"from": strategist})
     with brownie.reverts():
-        strategy.manualSendCVXToVault({"from": strategist})
+        strategy.manualSendOXDToVault({"from": strategist})
     with brownie.reverts():
         strategy.manualRebalance(0, {"from": strategist})
