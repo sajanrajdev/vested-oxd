@@ -3,43 +3,20 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin-contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin-contracts-upgradeable/math/SafeMathUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable/utils/AddressUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
-
-import "../interfaces/badger/IVault.sol";
-import "../interfaces/oxd/IVlOxd.sol";
-import "../interfaces/oxd/IVotingSnapshot.sol";
-
+import {IERC20Upgradeable} from "@openzeppelin-contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {SafeMathUpgradeable} from "@openzeppelin-contracts-upgradeable/math/SafeMathUpgradeable.sol";
+import {SafeERC20Upgradeable} from "@openzeppelin-contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
 import {BaseStrategy} from "@badger-finance/BaseStrategy.sol";
+
+import {IVault} from "../interfaces/badger/IVault.sol";
+import {IVlOxd} from "../interfaces/oxd/IVlOxd.sol";
+import {IVotingSnapshot} from "../interfaces/oxd/IVotingSnapshot.sol";
 
 contract MyStrategy is BaseStrategy {
     using SafeERC20Upgradeable for IERC20Upgradeable;
-    using AddressUpgradeable for address;
     using SafeMathUpgradeable for uint256;
 
-    address public constant BADGER_TREE = 0x89122c767A5F543e663DB536b603123225bc3823;
-
-    IVotingSnapshot public constant VOTING_SNAPSHOT =
-        IVotingSnapshot(0xDA007a39a692B0feFe9c6cb1a185feAb2722c4fD);
-
-    IVault public constant OXSOLID_VAULT =
-        IVault(address(1)); // TODO
-
-    // The initial DELEGATE for the strategy // NOTE we can change it by using manualSetDelegate below
-    address public constant DELEGATE = address(1); // TODO
-
-    // We hardcode, an upgrade is required to change this as it's a meaningful change
-    address public constant BRIBES_RECEIVER = address(1); // TODO
-
-    // We emit badger through the tree to the vault holders
-    address public constant BADGER = address(1); // TODO
-
-    // NOTE: At time of publishing, this contract is under audit
-    IVlOxd public constant LOCKER = IVlOxd(0xDA00527EDAabCe6F97D89aDb10395f719E5559b9);
-
-    address public reward; // Token we farm
+    IVault public bOxSolid;
 
     bool public withdrawalSafetyCheck = false;
     bool public harvestOnRebalance = false;
@@ -48,27 +25,38 @@ contract MyStrategy is BaseStrategy {
     bool public processLocksOnReinvest = false;
     bool public processLocksOnRebalance = false;
 
-    event RewardsCollected(
-        address token,
-        uint256 amount
-    );
+    IVlOxd public constant LOCKER = IVlOxd(0xDA00527EDAabCe6F97D89aDb10395f719E5559b9);
+
+    IERC20Upgradeable public constant OXD =
+        IERC20Upgradeable(0xc5A9848b9d145965d821AaeC8fA32aaEE026492d);
+    IERC20Upgradeable public constant OXSOLID =
+        IERC20Upgradeable(0xDA0053F0bEfCbcaC208A3f867BB243716734D809);
+
+    IVotingSnapshot public constant VOTING_SNAPSHOT =
+        IVotingSnapshot(0xDA007a39a692B0feFe9c6cb1a185feAb2722c4fD);
+
+    // The initial DELEGATE for the strategy // NOTE we can change it by using manualSetDelegate below
+    address public constant DELEGATE = address(1); // TODO
+
+    // event RewardsCollected(
+    //     address token,
+    //     uint256 amount
+    // );
 
     /// @dev Initialize the Strategy with security settings as well as tokens
     /// @notice Proxies will set any non constant variable you declare as default value
     /// @dev add any extra changeable variable at end of initializer as shown
-    function initialize(address _vault, address[2] memory _wantConfig) public initializer {
-    /// @dev security check to avoid moving tokens that would cause a rugpull, edit based on strat
+    function initialize(address _vault, address _bOxSolid) public initializer {
+        assert(IVault(_vault).token() == address(OXD));
+
         __BaseStrategy_init(_vault);
-        /// @dev Add config here
-        want = _wantConfig[0];
-        reward = _wantConfig[1];
+
+        want = address(OXSOLID);
+        bOxSolid = IVault(_bOxSolid);
         
-        // Permissions for Locker
-        IERC20Upgradeable(want).safeApprove(address(LOCKER), type(uint256).max);
+        OXD.safeApprove(address(LOCKER), type(uint256).max);
+        OXSOLID.safeApprove(_bOxSolid, type(uint256).max);
 
-        IERC20Upgradeable(reward).safeApprove(address(OXSOLID_VAULT), type(uint256).max);
-
-        // Delegate voting to DELEGATE
         VOTING_SNAPSHOT.setVoteDelegate(DELEGATE);
     }
     
@@ -108,47 +96,47 @@ contract MyStrategy is BaseStrategy {
         processLocksOnRebalance = newProcessLocksOnRebalance;
     }
 
-    /// @dev Function to move rewards that are not protected
-    /// @notice Only not protected, moves the whole amount using _handleRewardTransfer
-    /// @notice because token paths are harcoded, this function is safe to be called by anyone
-    function sweepRewardToken(address token) public {
-        _onlyGovernanceOrStrategist();
-        _onlyNotProtectedTokens(token);
-
-        uint256 toSend = IERC20Upgradeable(token).balanceOf(address(this));
-        _handleRewardTransfer(token, toSend);
-    }
-
-    /// @dev Bulk function for sweepRewardToken
-    function sweepRewards(address[] calldata tokens) external {
-        uint256 length = tokens.length;
-        for(uint i = 0; i < length; i++){
-            sweepRewardToken(tokens[i]);
-        }
-    }
-
-    /// *** Handling of rewards ***
-    function _handleRewardTransfer(address token, uint256 amount) internal {
-        // NOTE: BADGER is emitted through the tree
-        if (token == BADGER){
-            _sendBadgerToTree(amount);
-        } else {
-        // NOTE: All other tokens are sent to multisig
-            _sentTokenToBribesReceiver(token, amount);
-        }
-    }
-
-    /// @dev Send funds to the bribes receiver
-    function _sentTokenToBribesReceiver(address token, uint256 amount) internal {
-        IERC20Upgradeable(token).safeTransfer(BRIBES_RECEIVER, amount);
-        emit RewardsCollected(token, amount);
-    }
-
-    /// @dev Send the BADGER token to the badgerTree
-    function _sendBadgerToTree(uint256 amount) internal {
-        IERC20Upgradeable(BADGER).safeTransfer(BADGER_TREE, amount);
-        // emit TreeDistribution(BADGER, amount, block.number, block.timestamp); // TODO
-    }
+    // /// @dev Function to move rewards that are not protected
+    // /// @notice Only not protected, moves the whole amount using _handleRewardTransfer
+    // /// @notice because token paths are harcoded, this function is safe to be called by anyone
+    // function sweepRewardToken(address token) public {
+    //     _onlyGovernanceOrStrategist();
+    //     _onlyNotProtectedTokens(token);
+    //
+    //     uint256 toSend = IERC20Upgradeable(token).balanceOf(address(this));
+    //     _handleRewardTransfer(token, toSend);
+    // }
+    //
+    // /// @dev Bulk function for sweepRewardToken
+    // function sweepRewards(address[] calldata tokens) external {
+    //     uint256 length = tokens.length;
+    //     for(uint i = 0; i < length; i++){
+    //         sweepRewardToken(tokens[i]);
+    //     }
+    // }
+    //
+    // /// *** Handling of rewards ***
+    // function _handleRewardTransfer(address token, uint256 amount) internal {
+    //     // NOTE: BADGER is emitted through the tree
+    //     if (token == BADGER){
+    //         _sendBadgerToTree(amount);
+    //     } else {
+    //     // NOTE: All other tokens are sent to multisig
+    //         _sentTokenToBribesReceiver(token, amount);
+    //     }
+    // }
+    //
+    // /// @dev Send funds to the bribes receiver
+    // function _sentTokenToBribesReceiver(address token, uint256 amount) internal {
+    //     IERC20Upgradeable(token).safeTransfer(BRIBES_RECEIVER, amount);
+    //     emit RewardsCollected(token, amount);
+    // }
+    //
+    // /// @dev Send the BADGER token to the badgerTree
+    // function _sendBadgerToTree(uint256 amount) internal {
+    //     IERC20Upgradeable(BADGER).safeTransfer(BADGER_TREE, amount);
+    //     emit TreeDistribution(BADGER, amount, block.number, block.timestamp); // TODO
+    // }
 
     /// ===== View Functions =====
 
@@ -183,7 +171,12 @@ contract MyStrategy is BaseStrategy {
     /// @dev Return the balance of rewards that the strategy has accrued
     /// @notice Used for offChain APY and Harvest Health monitoring
     function balanceOfRewards() external view override returns (TokenAmount[] memory rewards) {
-        // TODO
+        IVlOxd.EarnedData[] memory earnedData = LOCKER.claimableRewards(address(this));
+        uint256 numRewards = earnedData.length;
+        rewards = new TokenAmount[](numRewards);
+        for (uint256 i; i < numRewards; ++i) {
+            rewards[i] = TokenAmount(earnedData[i].token, earnedData[i].amount);
+        }
     }
 
     /// @dev Return a list of protected tokens
@@ -191,8 +184,8 @@ contract MyStrategy is BaseStrategy {
     /// @notice this provides security guarantees to the depositors they can't be sweeped away
     function getProtectedTokens() public view virtual override returns (address[] memory) {
         address[] memory protectedTokens = new address[](2);
-        protectedTokens[0] = want;
-        protectedTokens[1] = reward;
+        protectedTokens[0] = want; // OXD
+        protectedTokens[1] = address(OXSOLID);
         return protectedTokens;
     }
 
@@ -233,7 +226,6 @@ contract MyStrategy is BaseStrategy {
             max = balanceOfWant();
         }
 
-
         if (withdrawalSafetyCheck) {
             require(
                 max >= _amount.mul(9_980).div(MAX_BPS),
@@ -248,31 +240,47 @@ contract MyStrategy is BaseStrategy {
         return _amount;
     }
 
+    // TODO: Right now there are only oxSolid rewards. Should I modify for cases when
+    //       are oxd, solid or other rewards?
     function _harvest() internal override returns (TokenAmount[] memory harvested) {
-        uint256 _beforeReward = IERC20Upgradeable(reward).balanceOf(address(this));
-
-        // Get rewards
         LOCKER.getReward();
 
-        // Rewards Math
-        uint256 earnedReward =
-            IERC20Upgradeable(reward).balanceOf(address(this)).sub(_beforeReward);
+        uint256 oxSolidBalance = OXSOLID.balanceOf(address(this));
 
-        uint256 vaultBefore = OXSOLID_VAULT.balanceOf(address(this));
-        OXSOLID_VAULT.deposit(earnedReward);
-        uint256 vaultAfter = OXSOLID_VAULT.balanceOf(address(this));
+        if (oxSolidBalance > 0) {
+            bOxSolid.deposit(oxSolidBalance);
+            uint256 vaultBalance = bOxSolid.balanceOf(address(this));
 
-        _processExtraToken(address(OXSOLID_VAULT), vaultAfter.sub(vaultBefore));
+            harvested = new TokenAmount[](1);
+            harvested[0] = TokenAmount(address(bOxSolid), vaultBalance);
 
-        /// @dev Harvest must return the amount of want increased
-        harvested = new TokenAmount[](1);
-
-        harvested[0] = TokenAmount(reward, earnedReward);
+            _processExtraToken(address(bOxSolid), vaultBalance);
+        }
     }
 
     // Example tend is a no-op which returns the values, could also just revert
     function _tend() internal override returns (TokenAmount[] memory tended){
         revert("no op"); // NOTE: For now tend is replaced by manualRebalance
+    }
+
+    /// MANUAL FUNCTIONS ///
+
+    /// @dev manual function to reinvest all CVX that was locked
+    function reinvest() external whenNotPaused returns (uint256) {
+        _onlyGovernance();
+
+        if (processLocksOnReinvest) {
+            // Withdraw all we can
+            LOCKER.processExpiredLocks(false);
+        }
+
+        // Redeposit all into veCVX
+        uint256 toDeposit = IERC20Upgradeable(want).balanceOf(address(this));
+
+        // Redeposit into veCVX
+        _deposit(toDeposit);
+
+        return toDeposit;
     }
 
     /// @dev process all locks, to redeem
@@ -282,22 +290,22 @@ contract MyStrategy is BaseStrategy {
         LOCKER.processExpiredLocks(false);
     }
 
-    function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
-        // We need to unlock funds if the lockedBalance (locked + unlocked) is greater than the balance (actively locked for this epoch)
-        upkeepNeeded = LOCKER.lockedBalanceOf(address(this)) > LOCKER.balanceOf(address(this));
-    }
-
-    /// @dev Function for ChainLink Keepers to automatically process expired locks
-    function performUpkeep(bytes calldata performData) external {
-        // Works like this because it reverts if lock is not expired
-        LOCKER.processExpiredLocks(false);
-    }
+    // function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory) {
+    //     // We need to unlock funds if the lockedBalance (locked + unlocked) is greater than the balance (actively locked for this epoch)
+    //     upkeepNeeded = LOCKER.lockedBalanceOf(address(this)) > LOCKER.balanceOf(address(this));
+    // }
+    //
+    // /// @dev Function for ChainLink Keepers to automatically process expired locks
+    // function performUpkeep(bytes calldata) external {
+    //     // Works like this because it reverts if lock is not expired
+    //     LOCKER.processExpiredLocks(false);
+    // }
 
     /// @dev Send all available OXD to the Vault
     /// @notice you can do this so you can earn again (re-lock), or just to add to the redemption pool
     function manualSendOXDToVault() external whenNotPaused {
         _onlyGovernance();
-        uint256 oxdAmount = IERC20Upgradeable(want).balanceOf(address(this));
+        uint256 oxdAmount = balanceOfWant();
         _transferToVault(oxdAmount);
     }
 
@@ -318,12 +326,12 @@ contract MyStrategy is BaseStrategy {
         }
 
         // Token that is highly liquid
-        uint256 balanceOfWant =
-            IERC20Upgradeable(want).balanceOf(address(this));
+        uint256 wantBalance =
+            balanceOfWant();
         // Locked OXD in the locker
         uint256 balanceInLock = LOCKER.balanceOf(address(this));
         uint256 totalOXDBalance =
-            balanceOfWant.add(balanceInLock);
+            wantBalance.add(balanceInLock);
 
         // Amount we want to have in lock
         uint256 newLockAmount = totalOXDBalance.mul(toLock).div(MAX_BPS);
@@ -337,7 +345,7 @@ contract MyStrategy is BaseStrategy {
         uint256 oxdToLock = newLockAmount.sub(balanceInLock);
 
         // We only lock up to the available OXD
-        uint256 maxOXD = IERC20Upgradeable(want).balanceOf(address(this));
+        uint256 maxOXD = balanceOfWant();
         if (oxdToLock > maxOXD) {
             // Just lock what we can
             LOCKER.lock(address(this), maxOXD, getBoostPayment());
@@ -347,7 +355,7 @@ contract MyStrategy is BaseStrategy {
         }
 
         // If anything left, send to vault
-        uint256 oxdLeft = IERC20Upgradeable(want).balanceOf(address(this));
+        uint256 oxdLeft = balanceOfWant();
         if(oxdLeft > 0){
             _transferToVault(oxdLeft);
         }
