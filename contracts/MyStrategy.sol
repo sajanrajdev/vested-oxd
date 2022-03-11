@@ -36,7 +36,7 @@ contract MyStrategy is BaseStrategy {
         IVotingSnapshot(0xDA007a39a692B0feFe9c6cb1a185feAb2722c4fD);
 
     // The initial DELEGATE for the strategy // NOTE we can change it by using manualSetDelegate below
-    address public constant DELEGATE = address(1); // TODO
+    address public constant DELEGATE = address(0); // TODO
 
     // event RewardsCollected(
     //     address token,
@@ -245,15 +245,16 @@ contract MyStrategy is BaseStrategy {
     function _harvest() internal override returns (TokenAmount[] memory harvested) {
         LOCKER.getReward();
 
-        uint256 oxSolidBalance = OXSOLID.balanceOf(address(this));
+        harvested = new TokenAmount[](1);
 
+        // OXSOLID --> bOXSOLID
+        uint256 oxSolidBalance = OXSOLID.balanceOf(address(this));
+        harvested[0].token = address(bOxSolid);
         if (oxSolidBalance > 0) {
             bOxSolid.deposit(oxSolidBalance);
             uint256 vaultBalance = bOxSolid.balanceOf(address(this));
 
-            harvested = new TokenAmount[](1);
-            harvested[0] = TokenAmount(address(bOxSolid), vaultBalance);
-
+            harvested[0].amount = vaultBalance;
             _processExtraToken(address(bOxSolid), vaultBalance);
         }
     }
