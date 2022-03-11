@@ -20,4 +20,3 @@ def test_setting_min_impacts_ratio_locked(
     assert (
         locker.lockedBalanceOf(strategy) >= startingBalance / 2
     )  ## 50% is locked (due to rounding between cvx and bcvx we use >=)
-

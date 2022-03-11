@@ -36,9 +36,7 @@ interface IVlOxd {
         uint256 _spendRatio
     ) external;
 
-    function processExpiredLocks(
-        bool _relock
-    ) external;
+    function processExpiredLocks(bool _relock) external;
 
     function processExpiredLocks(
         bool _relock,
@@ -58,10 +56,7 @@ interface IVlOxd {
             LockedBalance[] memory
         );
 
-    function claimableRewards(address _account)
-        external
-        view
-        returns (EarnedData[] memory userRewards);
+    function claimableRewards(address _account) external view returns (EarnedData[] memory userRewards);
 
     function rewardTokensLength() external view returns (uint256);
 

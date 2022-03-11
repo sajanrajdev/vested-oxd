@@ -24,7 +24,7 @@ def test_is_profitable(deployed):
     reward = interface.IERC20(strategy.OXSOLID_VAULT())
     reward_before = reward.balanceOf(strategy.strategist())
 
-    # Deposit   
+    # Deposit
     assert want.balanceOf(deployer) > 0
 
     depositAmount = int(want.balanceOf(deployer) * 0.8)
@@ -44,7 +44,7 @@ def test_is_profitable(deployed):
     chain.mine(1)
 
     snap.settHarvest({"from": settKeeper})
-    
+
     strategy.setProcessLocksOnRebalance(True, {"from": deployed.governance})
     strategy.manualRebalance(0, {"from": deployed.governance})
 

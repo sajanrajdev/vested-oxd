@@ -17,9 +17,7 @@ def test_withdraw_more_than_liquid_tries_to_unlock(
     can_withdraw = want.balanceOf(sett) + want.balanceOf(setup_strat)
 
     with brownie.reverts():
-        sett.withdraw(can_withdraw + 100) ## Expect to fail as lock is not expired
-
-
+        sett.withdraw(can_withdraw + 100)  ## Expect to fail as lock is not expired
 
 
 def test_wait_for_all_locks_can_withdraw_easy_after_manual_rebalance(
@@ -33,7 +31,7 @@ def test_wait_for_all_locks_can_withdraw_easy_after_manual_rebalance(
     ## Wait to unlock
     chain.sleep(86400 * 250)  # 250 days so lock expires
     strategy.setProcessLocksOnRebalance(True, {"from": deployed.governance})
-    
+
     strategy.manualRebalance(0, {"from": deployed.governance})
 
     ## Try to withdraw all
@@ -44,4 +42,3 @@ def test_wait_for_all_locks_can_withdraw_easy_after_manual_rebalance(
     )  ## Assert that we have not lost more than 10 basis points
     ## If this passes, implicitly it means the lock was expire and we were able to withdraw
     ## NOTE: We have to call strategy.manualRebalance with an amount that unlocks enough funds or we won't be able to withdraw
-

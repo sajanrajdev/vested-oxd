@@ -30,8 +30,5 @@ interface IVotingSnapshot {
 
     function voteWeightUsedByAccount(address) external view returns (uint256);
 
-    function voteWeightAvailableByAccount(address)
-        external
-        view
-        returns (uint256);
+    function voteWeightAvailableByAccount(address) external view returns (uint256);
 }

@@ -22,16 +22,20 @@ def test_after_wait_withdrawSome_unlocks_for_caller(setup_strat, want, sett, dep
 
     initial_b = want.balanceOf(deployer)
 
-    ## Not enough liquid balance    
+    ## Not enough liquid balance
     assert want.balanceOf(sett) + want.balanceOf(setup_strat) < initial_dep
 
     ## Yet we pull it off, because it unlocks for us
-    sett.withdraw(initial_dep, {"from": deployer}) ## Because we try to withdraw more than
+    sett.withdraw(
+        initial_dep, {"from": deployer}
+    )  ## Because we try to withdraw more than
 
-    assert want.balanceOf(deployer) > initial_b ## Want increased
+    assert want.balanceOf(deployer) > initial_b  ## Want increased
 
     ## More accurately
-    assert want.balanceOf(deployer) - initial_b >= (initial_dep * (10_000 - setup_strat.withdrawalFee()) / 10_000 - 1)
+    assert want.balanceOf(deployer) - initial_b >= (
+        initial_dep * (10_000 - setup_strat.withdrawalFee()) / 10_000 - 1
+    )
 
 
 def test_if_change_min_some_can_be_withdraw_easy(setup_strat, sett, deployer, want):
@@ -77,11 +81,13 @@ def test_after_deposit_locker_has_more_funds(
     chain.sleep(10000 * 13)  # Mine so we get some interest
 
     ## TEST: Did the proxy get more want?
-    assert locker.lockedBalanceOf(strategy) + locker.balanceOf(strategy) > intitial_in_locker
+    assert (
+        locker.lockedBalanceOf(strategy) + locker.balanceOf(strategy)
+        > intitial_in_locker
+    )
 
 
 def test_delegation_was_correct(strategy):
     target_delegate = strategy.DELEGATE()
-    voting_snapshot = interface.IVotingSnapshot(strategy.votingSnaphot) 
+    voting_snapshot = interface.IVotingSnapshot(strategy.votingSnaphot)
     assert voting_snapshot.voteDelegatedByAccount(strategy) == target_delegate
-

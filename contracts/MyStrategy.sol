@@ -27,13 +27,10 @@ contract MyStrategy is BaseStrategy {
 
     IVlOxd public constant LOCKER = IVlOxd(0xDA00527EDAabCe6F97D89aDb10395f719E5559b9);
 
-    IERC20Upgradeable public constant OXD =
-        IERC20Upgradeable(0xc5A9848b9d145965d821AaeC8fA32aaEE026492d);
-    IERC20Upgradeable public constant OXSOLID =
-        IERC20Upgradeable(0xDA0053F0bEfCbcaC208A3f867BB243716734D809);
+    IERC20Upgradeable public constant OXD = IERC20Upgradeable(0xc5A9848b9d145965d821AaeC8fA32aaEE026492d);
+    IERC20Upgradeable public constant OXSOLID = IERC20Upgradeable(0xDA0053F0bEfCbcaC208A3f867BB243716734D809);
 
-    IVotingSnapshot public constant VOTING_SNAPSHOT =
-        IVotingSnapshot(0xDA007a39a692B0feFe9c6cb1a185feAb2722c4fD);
+    IVotingSnapshot public constant VOTING_SNAPSHOT = IVotingSnapshot(0xDA007a39a692B0feFe9c6cb1a185feAb2722c4fD);
 
     // The initial DELEGATE for the strategy // NOTE we can change it by using manualSetDelegate below
     address public constant DELEGATE = address(0); // TODO
@@ -53,13 +50,13 @@ contract MyStrategy is BaseStrategy {
 
         want = address(OXSOLID);
         bOxSolid = IVault(_bOxSolid);
-        
+
         OXD.safeApprove(address(LOCKER), type(uint256).max);
         OXSOLID.safeApprove(_bOxSolid, type(uint256).max);
 
         VOTING_SNAPSHOT.setVoteDelegate(DELEGATE);
     }
-    
+
     /// ===== Extra Functions =====
 
     /// @dev Change Delegation to another address
@@ -89,9 +86,7 @@ contract MyStrategy is BaseStrategy {
     }
 
     ///@dev Should we processExpiredLocks during manualRebalance?
-    function setProcessLocksOnRebalance(bool newProcessLocksOnRebalance)
-        external
-    {
+    function setProcessLocksOnRebalance(bool newProcessLocksOnRebalance) external {
         _onlyGovernance();
         processLocksOnRebalance = newProcessLocksOnRebalance;
     }
@@ -140,7 +135,7 @@ contract MyStrategy is BaseStrategy {
 
     /// ===== View Functions =====
 
-    function getBoostPayment() public view returns(uint256){
+    function getBoostPayment() public view returns (uint256) {
         // uint256 maximumBoostPayment = LOCKER.maximumBoostPayment();
         // require(maximumBoostPayment <= 1500, "over max payment"); //max 15%
         // return maximumBoostPayment;
@@ -158,7 +153,7 @@ contract MyStrategy is BaseStrategy {
     }
 
     /// @dev Does this function require `tend` to be called?
-    function _isTendable() internal override pure returns (bool) {
+    function _isTendable() internal pure override returns (bool) {
         return false; // Change to true if the strategy should be tended
     }
 
@@ -206,8 +201,7 @@ contract MyStrategy is BaseStrategy {
     function _withdrawAll() internal override {
         //NOTE: This probably will always fail unless we have all tokens expired
         require(
-            LOCKER.lockedBalanceOf(address(this)) == 0 &&
-                LOCKER.balanceOf(address(this)) == 0,
+            LOCKER.lockedBalanceOf(address(this)) == 0 && LOCKER.balanceOf(address(this)) == 0,
             "You have to wait for unlock or have to manually rebalance out of it"
         );
 
@@ -219,7 +213,7 @@ contract MyStrategy is BaseStrategy {
     function _withdrawSome(uint256 _amount) internal override returns (uint256) {
         uint256 max = balanceOfWant();
 
-        if(_amount > max){
+        if (_amount > max) {
             // Try to unlock, as much as possible
             // @notice Reverts if no locks expired
             LOCKER.processExpiredLocks(false);
@@ -227,10 +221,7 @@ contract MyStrategy is BaseStrategy {
         }
 
         if (withdrawalSafetyCheck) {
-            require(
-                max >= _amount.mul(9_980).div(MAX_BPS),
-                "Withdrawal Safety Check"
-            ); // 20 BP of slippage
+            require(max >= _amount.mul(9_980).div(MAX_BPS), "Withdrawal Safety Check"); // 20 BP of slippage
         }
 
         if (_amount > max) {
@@ -260,7 +251,7 @@ contract MyStrategy is BaseStrategy {
     }
 
     // Example tend is a no-op which returns the values, could also just revert
-    function _tend() internal override returns (TokenAmount[] memory tended){
+    function _tend() internal override returns (TokenAmount[] memory tended) {
         revert("no op"); // NOTE: For now tend is replaced by manualRebalance
     }
 
@@ -327,12 +318,10 @@ contract MyStrategy is BaseStrategy {
         }
 
         // Token that is highly liquid
-        uint256 wantBalance =
-            balanceOfWant();
+        uint256 wantBalance = balanceOfWant();
         // Locked OXD in the locker
         uint256 balanceInLock = LOCKER.balanceOf(address(this));
-        uint256 totalOXDBalance =
-            wantBalance.add(balanceInLock);
+        uint256 totalOXDBalance = wantBalance.add(balanceInLock);
 
         // Amount we want to have in lock
         uint256 newLockAmount = totalOXDBalance.mul(toLock).div(MAX_BPS);
@@ -357,7 +346,7 @@ contract MyStrategy is BaseStrategy {
 
         // If anything left, send to vault
         uint256 oxdLeft = balanceOfWant();
-        if(oxdLeft > 0){
+        if (oxdLeft > 0) {
             _transferToVault(oxdLeft);
         }
     }
