@@ -5,7 +5,9 @@ from helpers.SnapshotManager import SnapshotManager
 from helpers.time import days
 
 
-def test_deposit_withdraw_single_user_flow(deployer, vault, strategy, want, keeper):
+def test_deposit_withdraw_single_user_flow(
+    deployer, vault, strategy, want, keeper, governance
+):
     # Setup
     snap = SnapshotManager(vault, strategy, "StrategySnapshot")
     randomUser = accounts[6]
@@ -29,8 +31,11 @@ def test_deposit_withdraw_single_user_flow(deployer, vault, strategy, want, keep
 
     snap.settEarn({"from": keeper})
 
-    chain.sleep(15)
+    chain.sleep(86400 * 250)  ## Wait 250 days so we can withdraw later
     chain.mine(1)
+
+    strategy.setProcessLocksOnRebalance(True, {"from": governance})
+    strategy.manualRebalance(0, {"from": governance})
 
     snap.settWithdraw(shares // 2, {"from": deployer})
 
@@ -40,7 +45,7 @@ def test_deposit_withdraw_single_user_flow(deployer, vault, strategy, want, keep
     snap.settWithdraw(shares // 2 - 1, {"from": deployer})
 
 
-def test_single_user_harvest_flow(deployer, vault, strategy, want, keeper):
+def test_single_user_harvest_flow(deployer, vault, strategy, want, keeper, governance):
     # Setup
     snap = SnapshotManager(vault, strategy, "StrategySnapshot")
     randomUser = accounts[6]
@@ -82,11 +87,14 @@ def test_single_user_harvest_flow(deployer, vault, strategy, want, keeper):
 
     snap.settHarvest({"from": keeper})
 
-    chain.sleep(days(1))
+    chain.sleep(86400 * 250)  ## Wait 250 days so we can withdraw later
     chain.mine()
 
     if tendable:
         snap.settTend({"from": keeper})
+
+    strategy.setProcessLocksOnRebalance(True, {"from": governance})
+    strategy.manualRebalance(0, {"from": governance})
 
     snap.settWithdraw(shares // 2, {"from": deployer})
 
@@ -119,13 +127,15 @@ def test_migrate_single_user(deployer, vault, strategy, want, governance, keeper
     chain.snapshot()
 
     # Test no harvests
-    chain.sleep(days(2))
+    chain.sleep(86400 * 250)  ## Wait 250 days so we can withdraw later
     chain.mine()
 
     before = {"settWant": want.balanceOf(vault), "stratWant": strategy.balanceOf()}
 
     with brownie.reverts():
         vault.withdrawToVault({"from": randomUser})
+
+    strategy.prepareWithdrawAll({"from": governance})
 
     vault.withdrawToVault({"from": governance})
 
@@ -160,7 +170,7 @@ def test_migrate_single_user(deployer, vault, strategy, want, governance, keeper
     # Test harvest, with tend if tendable
     chain.revert()
 
-    chain.sleep(days(1))
+    chain.sleep(86400 * 250)  ## Wait 250 days so we can withdraw later
     chain.mine()
 
     if strategy.isTendable():
@@ -177,6 +187,7 @@ def test_migrate_single_user(deployer, vault, strategy, want, governance, keeper
     with brownie.reverts():
         vault.withdrawToVault({"from": randomUser})
 
+    strategy.prepareWithdrawAll({"from": governance})
     vault.withdrawToVault({"from": governance})
 
     after = {"settWant": want.balanceOf(vault), "stratWant": strategy.balanceOf()}
@@ -186,7 +197,9 @@ def test_migrate_single_user(deployer, vault, strategy, want, governance, keeper
     assert after["stratWant"] == 0
 
 
-def test_single_user_harvest_flow_remove_fees(deployer, vault, strategy, want, keeper):
+def test_single_user_harvest_flow_remove_fees(
+    deployer, vault, strategy, want, keeper, governance
+):
     # Setup
     randomUser = accounts[6]
     snap = SnapshotManager(vault, strategy, "StrategySnapshot")
@@ -210,7 +223,7 @@ def test_single_user_harvest_flow_remove_fees(deployer, vault, strategy, want, k
     if tendable:
         snap.settTend({"from": keeper})
 
-    chain.sleep(days(1))
+    chain.sleep(86400 * 250)  ## Wait 250 days so we can withdraw later
     chain.mine()
 
     with brownie.reverts("onlyAuthorizedActors"):
@@ -223,16 +236,12 @@ def test_single_user_harvest_flow_remove_fees(deployer, vault, strategy, want, k
     # assert vault.balanceOf(vault.treasury()) > 0
     ## If the strategy is not printing, add checks here to verify that tokens were emitted
 
-    chain.sleep(days(1))
-    chain.mine()
-
     if tendable:
         snap.settTend({"from": keeper})
 
-    chain.sleep(days(3))
+    chain.sleep(86400 * 250)  ## Wait 250 days so we can withdraw later
     chain.mine()
-
-    snap.settHarvest({"from": keeper})
+    strategy.prepareWithdrawAll({"from": governance})
 
     snap.settWithdrawAll({"from": deployer})
 

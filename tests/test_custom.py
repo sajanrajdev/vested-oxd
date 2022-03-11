@@ -88,6 +88,9 @@ def test_after_deposit_locker_has_more_funds(
 
 
 def test_delegation_was_correct(strategy):
-    target_delegate = strategy.DELEGATE()
+    delegate = strategy.DELEGATE()
     voting_snapshot = interface.IVotingSnapshot(strategy.VOTING_SNAPSHOT())
-    assert voting_snapshot.voteDelegateByAccount(strategy) == target_delegate
+    assert voting_snapshot.voteDelegateByAccount(strategy) == delegate
+
+    pool = "0xDf9181Fe9a39Ec5D845D7351309C2D408a0dA4d6"
+    voting_snapshot.vote(pool, 1, {"from": delegate})

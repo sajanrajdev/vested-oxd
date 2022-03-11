@@ -39,7 +39,9 @@ def state_setup(deployer, vault, strategy, want, keeper):
     accounts.at(vault, force=True)
 
 
-def test_strategy_action_permissions(deployer, vault, strategy, want, keeper):
+def test_strategy_action_permissions(
+    deployer, vault, strategy, want, keeper, governance
+):
     state_setup(deployer, vault, strategy, want, keeper)
 
     tendable = strategy.isTendable()
@@ -81,6 +83,9 @@ def test_strategy_action_permissions(deployer, vault, strategy, want, keeper):
         strategy.strategist(),
         strategy.keeper(),
     ]
+
+    chain.sleep(86400 * 250)
+    strategy.prepareWithdrawAll({"from": governance})
 
     # withdrawToVault onlyVault
     for actor in actorsToCheck:
@@ -147,6 +152,8 @@ def test_strategy_pausing_permissions(deployer, vault, strategy, want, keeper):
 
     vault.deposit(1, {"from": deployer})
     vault.withdraw(1, {"from": deployer})
+
+    chain.sleep(86400 * 250)
     vault.withdrawAll({"from": deployer})
 
     strategy.harvest({"from": keeper})
@@ -202,6 +209,8 @@ def test_sett_pausing_permissions(deployer, vault, strategy, want, keeper):
     vault.deposit(1, {"from": deployer})
     vault.earn({"from": keeper})
     vault.withdraw(1, {"from": deployer})
+
+    chain.sleep(86400 * 250)
     vault.withdrawAll({"from": deployer})
 
 
