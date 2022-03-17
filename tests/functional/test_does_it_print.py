@@ -4,6 +4,7 @@ from helpers.constants import MaxUint256
 from helpers.SnapshotManager import SnapshotManager
 
 MAX_BASIS = 10000
+SECS_PER_YEAR = 31_556_952
 
 
 def test_is_profitable(deployed):
@@ -51,7 +52,9 @@ def test_is_profitable(deployed):
     ending_balance = want.balanceOf(deployer)
 
     initial_balance_with_fees = initial_balance * (
-        1 - (vault.withdrawalFee() / MAX_BASIS)
+        1
+        - (vault.withdrawalFee() / MAX_BASIS)
+        - (vault.managementFee() * 86400 * 250 / SECS_PER_YEAR)
     )
 
     print("Initial Balance")

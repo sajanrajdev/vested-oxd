@@ -43,7 +43,8 @@ class StrategyResolver(StrategyCoreResolver):
         # No autocompounding
         # super().confirm_harvest(before, after, tx)
 
-        assert after.get("sett.getPricePerFullShare") == before.get(
+        # Decreases because of management fees
+        assert after.get("sett.getPricePerFullShare") <= before.get(
             "sett.getPricePerFullShare"
         )
 
