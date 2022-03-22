@@ -11,12 +11,11 @@ import {BaseStrategy} from "@badger-finance/BaseStrategy.sol";
 import {IVault} from "../interfaces/badger/IVault.sol";
 import {IVlOxd} from "../interfaces/oxd/IVlOxd.sol";
 import {IVotingSnapshot} from "../interfaces/oxd/IVotingSnapshot.sol";
+import {route, IBaseV1Router01} from "../interfaces/solidly/IBaseV1Router01.sol";
 
 contract MyStrategy is BaseStrategy {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeMathUpgradeable for uint256;
-
-    IVault public bOxSolid;
 
     bool public withdrawalSafetyCheck = false;
 
@@ -27,8 +26,12 @@ contract MyStrategy is BaseStrategy {
 
     IERC20Upgradeable public constant OXD = IERC20Upgradeable(0xc5A9848b9d145965d821AaeC8fA32aaEE026492d);
     IERC20Upgradeable public constant OXSOLID = IERC20Upgradeable(0xDA0053F0bEfCbcaC208A3f867BB243716734D809);
+    IERC20Upgradeable public constant SOLID = IERC20Upgradeable(0x888EF71766ca594DED1F0FA3AE64eD2941740A20);
+    IERC20Upgradeable public constant WFTM = IERC20Upgradeable(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
 
     IVotingSnapshot public constant VOTING_SNAPSHOT = IVotingSnapshot(0xDA007a39a692B0feFe9c6cb1a185feAb2722c4fD);
+
+    IBaseV1Router01 public constant SOLIDLY_ROUTER = IBaseV1Router01(0xa38cd27185a464914D3046f0AB9d43356B34829D);
 
     // The initial DELEGATE for the strategy // NOTE we can change it by using manualSetDelegate below
     address public constant DELEGATE = address(0x781E82D5D49042baB750efac91858cB65C6b0582);
@@ -36,20 +39,19 @@ contract MyStrategy is BaseStrategy {
     /// @dev Initialize the Strategy with security settings as well as tokens
     /// @notice Proxies will set any non constant variable you declare as default value
     /// @dev add any extra changeable variable at end of initializer as shown
-    function initialize(address _vault, address _bOxSolid) public initializer {
+    function initialize(address _vault) public initializer {
         assert(IVault(_vault).token() == address(OXD));
 
         __BaseStrategy_init(_vault);
 
         want = address(OXD);
-        bOxSolid = IVault(_bOxSolid);
 
         OXD.safeApprove(address(LOCKER), type(uint256).max);
-        OXSOLID.safeApprove(_bOxSolid, type(uint256).max);
-
         VOTING_SNAPSHOT.setVoteDelegate(DELEGATE);
 
-        autoCompoundRatio = 0;
+        OXSOLID.safeApprove(address(SOLIDLY_ROUTER), type(uint256).max);
+
+        autoCompoundRatio = MAX_BPS;
     }
 
     /// ===== Extra Functions =====
@@ -171,25 +173,31 @@ contract MyStrategy is BaseStrategy {
         return _amount;
     }
 
-    // TODO: Right now there are only oxSolid rewards. Should I modify for cases when
-    //       are oxd, solid or other rewards?
     function _harvest() internal override returns (TokenAmount[] memory harvested) {
+        uint256 wantBalanceBefore = balanceOfWant();
+
         LOCKER.getReward();
 
         harvested = new TokenAmount[](1);
+        harvested[0].token = address(OXD);
 
-        // OXSOLID --> bOXSOLID
+        // OXSOLID --> SOLID --> WFTM --> OXD
         uint256 oxSolidBalance = OXSOLID.balanceOf(address(this));
-        harvested[0].token = address(bOxSolid);
         if (oxSolidBalance > 0) {
-            bOxSolid.deposit(oxSolidBalance);
-            uint256 vaultBalance = bOxSolid.balanceOf(address(this));
+            route[] memory routeArray = new route[](3);
 
-            harvested[0].amount = vaultBalance;
-            _processExtraToken(address(bOxSolid), vaultBalance);
+            (, bool stable) = SOLIDLY_ROUTER.getAmountOut(oxSolidBalance, address(OXSOLID), address(SOLID));
+
+            routeArray[0] = route(address(OXSOLID), address(SOLID), stable);
+            routeArray[1] = route(address(SOLID), address(WFTM), false);
+            routeArray[2] = route(address(WFTM), address(OXD), false);
+
+            SOLIDLY_ROUTER.swapExactTokensForTokens(oxSolidBalance, 0, routeArray, address(this), block.timestamp);
+
+            harvested[0].amount = balanceOfWant().sub(wantBalanceBefore);
         }
 
-        _reportToVault(0);
+        _reportToVault(harvested[0].amount);
     }
 
     // Example tend is a no-op which returns the values, could also just revert
