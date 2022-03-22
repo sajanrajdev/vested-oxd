@@ -91,38 +91,6 @@ def badgerTree():
 
 
 @pytest.fixture
-def oxsolid():
-    return "0xDA0053F0bEfCbcaC208A3f867BB243716734D809"
-
-
-@pytest.fixture
-def boxsolid(oxsolid, governance, keeper, guardian, strategist, badgerTree):
-    vault = TheVault.deploy({"from": accounts[0]})
-    vault.initialize(
-        oxsolid,
-        governance,
-        keeper,
-        guardian,
-        governance,
-        strategist,
-        badgerTree,
-        "",
-        "",
-        [
-            PERFORMANCE_FEE_GOVERNANCE,
-            PERFORMANCE_FEE_STRATEGIST,
-            WITHDRAWAL_FEE,
-            MANAGEMENT_FEE,
-        ],
-    )
-    strategy = MockStrategy.deploy({"from": accounts[0]})
-    strategy.initialize(vault)
-
-    vault.setStrategy(strategy, {"from": governance})
-    return vault
-
-
-@pytest.fixture
 def deployed(
     want,
     deployer,
@@ -133,7 +101,6 @@ def deployed(
     proxyAdmin,
     randomUser,
     badgerTree,
-    boxsolid,
 ):
     """
     Deploys, vault and test strategy, mock token and wires them up.
@@ -162,7 +129,7 @@ def deployed(
     # NOTE: TheVault starts unpaused
 
     strategy = MyStrategy.deploy({"from": deployer})
-    strategy.initialize(vault, boxsolid)
+    strategy.initialize(vault)
     # NOTE: Strategy starts unpaused
 
     vault.setStrategy(strategy, {"from": governance})

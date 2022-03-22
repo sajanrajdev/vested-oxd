@@ -20,9 +20,6 @@ def test_is_profitable(deployed):
 
     snap = SnapshotManager(vault, strategy, "StrategySnapshot")
 
-    reward = interface.IERC20(strategy.bOxSolid())
-    reward_before = reward.balanceOf(vault.treasury())
-
     # Deposit
     assert want.balanceOf(deployer) > 0
 
@@ -44,8 +41,7 @@ def test_is_profitable(deployed):
 
     snap.settHarvest({"from": settKeeper})
 
-    strategy.setProcessLocksOnRebalance(True, {"from": deployed.governance})
-    strategy.manualRebalance(0, {"from": deployed.governance})
+    strategy.manualProcessExpiredLocks({"from": deployed.governance})
 
     snap.settWithdrawAll({"from": deployer})
 
@@ -63,10 +59,5 @@ def test_is_profitable(deployed):
     print(initial_balance_with_fees)
     print("Ending Balance")
     print(ending_balance)
-
-    reward_after = reward.balanceOf(vault.treasury())
-
-    ## Custom check for rewards being sent to gov as resolver is too complex
-    assert reward_after > reward_before
 
     assert ending_balance > initial_balance_with_fees

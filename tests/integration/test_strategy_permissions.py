@@ -275,8 +275,6 @@ def test_check_manual_permissions(
         strategy.manualProcessExpiredLocks({"from": rando})
     with brownie.reverts():
         strategy.manualSendOXDToVault({"from": rando})
-    with brownie.reverts():
-        strategy.manualRebalance(0, {"from": rando})
 
     ## Strategist is bounced for manual ops
     with brownie.reverts():
@@ -285,5 +283,3 @@ def test_check_manual_permissions(
         strategy.manualProcessExpiredLocks({"from": strategist})
     with brownie.reverts():
         strategy.manualSendOXDToVault({"from": strategist})
-    with brownie.reverts():
-        strategy.manualRebalance(0, {"from": strategist})
